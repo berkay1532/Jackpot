@@ -1,17 +1,23 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
-import { Jackpot } from "../typechain-types";
+import { Jackpot, MockJackpot } from "../typechain-types";
 
 describe("Jackpot Contract", () => {
   let jackpot: Jackpot;
+  let mockJackpot: Jackpot;
   let owner: any, platform: any, user1: any, user2: any;
 
   beforeEach(async () => {
     [owner, platform, user1, user2] = await ethers.getSigners();
     const JackpotFactory = await ethers.getContractFactory("Jackpot");
     jackpot = (await JackpotFactory.deploy(platform.address)) as Jackpot;
-    // waitForDeployment() kullanın deployed() yerine (Hardhat v2+ için)
+
     await jackpot.waitForDeployment();
+      
+    const MockJackpotFactory = await ethers.getContractFactory("MockJackpot");
+    mockJackpot = (await MockJackpotFactory.deploy(platform.address)) as MockJackpot;
+
+    await mockJackpot.waitForDeployment();
   });
 
   it("should accept deposits and track total pool", async () => {
@@ -30,22 +36,22 @@ describe("Jackpot Contract", () => {
   });
 
   it("should select a winner and distribute funds correctly", async () => {
-    await jackpot.connect(user1).deposit({ value: ethers.parseEther("1") });
-    await jackpot.connect(user2).deposit({ value: ethers.parseEther("3") });
+    await mockJackpot.connect(user1).deposit({ value: ethers.parseEther("1") });
+    await mockJackpot.connect(user2).deposit({ value: ethers.parseEther("3") });
 
     // Simulate 1 hour passing
     await ethers.provider.send("evm_increaseTime", [3600]);
     await ethers.provider.send("evm_mine", []);
 
     const platformBalanceBefore = await ethers.provider.getBalance(platform.address);
-    await jackpot.drawWinner();
+    await mockJackpot.drawWinner();
     const platformBalanceAfter = await ethers.provider.getBalance(platform.address);
     
     const expectedCut = ethers.parseEther("0.2"); // 5% of 4
 
     expect(platformBalanceAfter - platformBalanceBefore).to.equal(expectedCut);
     
-    const finalPoolBalance = await ethers.provider.getBalance(await jackpot.getAddress());
+    const finalPoolBalance = await ethers.provider.getBalance(await mockJackpot.getAddress());
     expect(finalPoolBalance).to.equal(0);
   });
 });
